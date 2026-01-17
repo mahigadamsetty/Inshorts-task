@@ -37,3 +37,7 @@ Thumbs.db
 /bin/
 /dist/
 *.log
+
+# Project-specific binaries
+/server
+/import_data
