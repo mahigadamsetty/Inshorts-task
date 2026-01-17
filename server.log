@@ -1,0 +1,25 @@
+2026/01/17 20:50:46 Database initialized successfully
+2026/01/17 20:50:46 Warning: No OpenAI API key provided. Using fallback heuristics.
+2026/01/17 20:50:46 Event simulation started
+[GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
+
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /api/v1/news/category     --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).GetByCategory-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/source       --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).GetBySource-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/score        --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).GetByScore-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/search       --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).Search-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/nearby       --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).GetNearby-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/trending     --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).GetTrending-fm (4 handlers)
+[GIN-debug] GET    /api/v1/news/query        --> github.com/mahigadamsetty/Inshorts-task/internal/handlers.(*NewsHandler).Query-fm (4 handlers)
+[GIN-debug] GET    /health                   --> github.com/mahigadamsetty/Inshorts-task/internal/router.Setup.func1 (4 handlers)
+2026/01/17 20:50:46 Starting server on :8085
+2026/01/17 20:50:46 API endpoints available at http://localhost:8085/api/v1/news/
+[GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
+Please check https://github.com/gin-gonic/gin/blob/master/docs/doc.md#dont-trust-all-proxies for details.
+[GIN-debug] Listening and serving HTTP on :8085
+[GIN] 2026/01/17 - 20:50:54 | 200 |    4.645024ms |             ::1 | GET      "/api/v1/news/query?query=Show%20me%20technology%20news&limit=2"
+[GIN] 2026/01/17 - 20:51:01 | 200 |    5.472255ms |             ::1 | GET      "/api/v1/news/query?query=best%20sports%20news&limit=2"
+[GIN] 2026/01/17 - 20:51:09 | 200 |   19.625281ms |             ::1 | GET      "/api/v1/news/query?query=cricket%20match%20results&limit=2"

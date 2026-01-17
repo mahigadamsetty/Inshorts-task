@@ -277,6 +277,8 @@ func (h *NewsHandler) Query(c *gin.Context) {
 		return
 	}
 
+	limit := h.getLimit(c)
+
 	// Extract intent and entities
 	result, err := h.llmClient.ExtractEntitiesAndIntent(c.Request.Context(), query)
 	if err != nil {
@@ -284,38 +286,41 @@ func (h *NewsHandler) Query(c *gin.Context) {
 		return
 	}
 
-	// Dispatch to appropriate endpoint based on intent
+	// Dispatch to appropriate handler based on intent
 	switch result.Intent {
 	case llm.IntentCategory:
 		if category, ok := result.Entities["category"]; ok {
-			c.Request.URL.RawQuery = fmt.Sprintf("category=%s&limit=%d", category, h.getLimit(c))
-			h.GetByCategory(c)
+			h.handleCategoryQuery(c, category, limit)
 			return
 		}
 
 	case llm.IntentSource:
 		if source, ok := result.Entities["source"]; ok {
-			c.Request.URL.RawQuery = fmt.Sprintf("source=%s&limit=%d", source, h.getLimit(c))
-			h.GetBySource(c)
+			h.handleSourceQuery(c, source, limit)
 			return
 		}
 
 	case llm.IntentScore:
-		c.Request.URL.RawQuery = fmt.Sprintf("min=0.7&limit=%d", h.getLimit(c))
-		h.GetByScore(c)
+		h.handleScoreQuery(c, 0.7, limit)
 		return
 
 	case llm.IntentNearby:
 		// Use provided lat/lon or default
-		lat := c.Query("lat")
-		lon := c.Query("lon")
-		if lat == "" || lon == "" {
-			// Default location if not provided
-			lat = "37.4220"
-			lon = "-122.0840"
+		lat := 37.4220
+		lon := -122.0840
+		
+		if latStr := c.Query("lat"); latStr != "" {
+			if latVal, err := strconv.ParseFloat(latStr, 64); err == nil {
+				lat = latVal
+			}
 		}
-		c.Request.URL.RawQuery = fmt.Sprintf("lat=%s&lon=%s&radius=50&limit=%d", lat, lon, h.getLimit(c))
-		h.GetNearby(c)
+		if lonStr := c.Query("lon"); lonStr != "" {
+			if lonVal, err := strconv.ParseFloat(lonStr, 64); err == nil {
+				lon = lonVal
+			}
+		}
+		
+		h.handleNearbyQuery(c, lat, lon, 50.0, limit)
 		return
 
 	case llm.IntentSearch:
@@ -324,14 +329,107 @@ func (h *NewsHandler) Query(c *gin.Context) {
 		if keywords, ok := result.Entities["keywords"]; ok {
 			searchQuery = keywords
 		}
-		c.Request.URL.RawQuery = fmt.Sprintf("query=%s&limit=%d", searchQuery, h.getLimit(c))
-		h.Search(c)
+		h.handleSearchQuery(c, searchQuery, limit)
 		return
 	}
 
 	// Default to search if intent unclear
-	c.Request.URL.RawQuery = fmt.Sprintf("query=%s&limit=%d", query, h.getLimit(c))
-	h.Search(c)
+	h.handleSearchQuery(c, query, limit)
+}
+
+// Helper methods that directly handle queries without relying on URL parameters
+func (h *NewsHandler) handleCategoryQuery(c *gin.Context, category string, limit int) {
+	var articles []*models.Article
+	err := db.GetDB().Where("category LIKE ?", "%"+category+"%").Find(&articles).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	articles = services.RankByPublicationDate(articles)
+	if len(articles) > limit {
+		articles = articles[:limit]
+	}
+
+	h.enrichWithSummaries(c.Request.Context(), articles)
+	h.sendResponse(c, articles, limit, "category", category)
+}
+
+func (h *NewsHandler) handleSourceQuery(c *gin.Context, source string, limit int) {
+	var articles []*models.Article
+	err := db.GetDB().Where("source_name LIKE ?", "%"+source+"%").Find(&articles).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	articles = services.RankByPublicationDate(articles)
+	if len(articles) > limit {
+		articles = articles[:limit]
+	}
+
+	h.enrichWithSummaries(c.Request.Context(), articles)
+	h.sendResponse(c, articles, limit, "source", source)
+}
+
+func (h *NewsHandler) handleScoreQuery(c *gin.Context, min float64, limit int) {
+	var articles []*models.Article
+	err := db.GetDB().Where("relevance_score >= ?", min).Find(&articles).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	articles = services.RankByRelevanceScore(articles)
+	if len(articles) > limit {
+		articles = articles[:limit]
+	}
+
+	h.enrichWithSummaries(c.Request.Context(), articles)
+	h.sendResponse(c, articles, limit, "score", fmt.Sprintf("min=%.2f", min))
+}
+
+func (h *NewsHandler) handleSearchQuery(c *gin.Context, query string, limit int) {
+	var articles []*models.Article
+	err := db.GetDB().Find(&articles).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	articles = services.RankBySearchScore(articles, query)
+	if len(articles) > limit {
+		articles = articles[:limit]
+	}
+
+	h.enrichWithSummaries(c.Request.Context(), articles)
+	h.sendResponse(c, articles, limit, "search", query)
+}
+
+func (h *NewsHandler) handleNearbyQuery(c *gin.Context, lat, lon, radius float64, limit int) {
+	var allArticles []*models.Article
+	err := db.GetDB().Find(&allArticles).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	var articles []*models.Article
+	for _, article := range allArticles {
+		distance := utils.Haversine(lat, lon, article.Latitude, article.Longitude)
+		if distance <= radius {
+			articles = append(articles, article)
+		}
+	}
+
+	articles = services.RankByDistance(articles, lat, lon)
+	if len(articles) > limit {
+		articles = articles[:limit]
+	}
+
+	h.enrichWithSummaries(c.Request.Context(), articles)
+	query := fmt.Sprintf("lat=%.4f, lon=%.4f, radius=%.1fkm", lat, lon, radius)
+	h.sendResponse(c, articles, limit, "nearby", query)
 }
 
 func (h *NewsHandler) getLimit(c *gin.Context) int {
