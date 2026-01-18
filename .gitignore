@@ -36,3 +36,5 @@ Thumbs.db
 # Build artifacts
 /bin/
 /dist/
+/server
+/import_data
