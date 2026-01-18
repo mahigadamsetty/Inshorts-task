@@ -2,6 +2,7 @@ package services
 
 import (
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/mahigadamsetty/Inshorts-task/internal/models"
@@ -38,14 +39,10 @@ func RankByDistance(articles []models.Article, lat, lon float64) []models.Articl
 		}
 	}
 	
-	// Sort by distance (ascending)
-	for i := 0; i < len(scored)-1; i++ {
-		for j := i + 1; j < len(scored); j++ {
-			if scored[i].Score > scored[j].Score {
-				scored[i], scored[j] = scored[j], scored[i]
-			}
-		}
-	}
+	// Sort by distance (ascending) using built-in sort
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].Score < scored[j].Score
+	})
 	
 	result := make([]models.Article, len(scored))
 	for i, s := range scored {
@@ -72,14 +69,10 @@ func RankBySearchRelevance(articles []models.Article, query string) []models.Art
 		}
 	}
 	
-	// Sort by combined score (descending)
-	for i := 0; i < len(scored)-1; i++ {
-		for j := i + 1; j < len(scored); j++ {
-			if scored[i].Score < scored[j].Score {
-				scored[i], scored[j] = scored[j], scored[i]
-			}
-		}
-	}
+	// Sort by combined score (descending) using built-in sort
+	sort.Slice(scored, func(i, j int) bool {
+		return scored[i].Score > scored[j].Score
+	})
 	
 	result := make([]models.Article, len(scored))
 	for i, s := range scored {

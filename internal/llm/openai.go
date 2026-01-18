@@ -187,8 +187,8 @@ func extractEntities(query string) []string {
 	entities := []string{}
 	
 	for _, word := range words {
-		// Skip common words
-		if len(word) > 3 && strings.Title(word) == word {
+		// Skip common words - check if first letter is uppercase
+		if len(word) > 3 && word[0] >= 'A' && word[0] <= 'Z' {
 			entities = append(entities, word)
 		}
 	}

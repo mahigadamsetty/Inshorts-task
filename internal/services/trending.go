@@ -3,6 +3,7 @@ package services
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
@@ -181,14 +182,10 @@ func GetTrendingArticles(lat, lon float64, limit int, clusterDegrees float64) ([
 		})
 	}
 	
-	// Sort by score (descending)
-	for i := 0; i < len(scores)-1; i++ {
-		for j := i + 1; j < len(scores); j++ {
-			if scores[i].Score < scores[j].Score {
-				scores[i], scores[j] = scores[j], scores[i]
-			}
-		}
-	}
+	// Sort by score (descending) using built-in sort
+	sort.Slice(scores, func(i, j int) bool {
+		return scores[i].Score > scores[j].Score
+	})
 	
 	// Get top articles
 	topCount := limit * 2 // Get extra to account for missing articles

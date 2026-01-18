@@ -11,6 +11,7 @@ import (
 	"github.com/mahigadamsetty/Inshorts-task/internal/llm"
 	"github.com/mahigadamsetty/Inshorts-task/internal/models"
 	"github.com/mahigadamsetty/Inshorts-task/internal/services"
+	"github.com/mahigadamsetty/Inshorts-task/internal/utils"
 )
 
 type NewsHandler struct {
@@ -268,7 +269,7 @@ func (h *NewsHandler) GetNearby(c *gin.Context) {
 	// Filter by radius and limit
 	filtered := []models.Article{}
 	for _, article := range articles {
-		distance := calculateDistance(lat, lon, article.Latitude, article.Longitude)
+		distance := utils.HaversineDistance(lat, lon, article.Latitude, article.Longitude)
 		if distance <= radius {
 			filtered = append(filtered, article)
 			if len(filtered) >= limit {
@@ -448,51 +449,6 @@ func (h *NewsHandler) enrichWithSummaries(articles []models.Article) {
 }
 
 // Helper functions
-func calculateDistance(lat1, lon1, lat2, lon2 float64) float64 {
-	// Reuse the Haversine function
-	const earthRadiusKm = 6371.0
-	dLat := (lat2 - lat1) * 3.14159265359 / 180.0
-	dLon := (lon2 - lon1) * 3.14159265359 / 180.0
-	
-	lat1Rad := lat1 * 3.14159265359 / 180.0
-	lat2Rad := lat2 * 3.14159265359 / 180.0
-	
-	a := (dLat/2)*(dLat/2) + (dLon/2)*(dLon/2)*
-		cosApprox(lat1Rad)*cosApprox(lat2Rad)
-	c := 2 * atanApprox(sqrtApprox(a), sqrtApprox(1-a))
-	
-	return earthRadiusKm * c
-}
-
-func sqrtApprox(x float64) float64 {
-	if x < 0 {
-		return 0
-	}
-	// Simple approximation
-	z := 1.0
-	for i := 0; i < 10; i++ {
-		z = (z + x/z) / 2
-	}
-	return z
-}
-
-func cosApprox(x float64) float64 {
-	// Taylor series approximation
-	x2 := x * x
-	return 1 - x2/2 + x2*x2/24
-}
-
-func atanApprox(y, x float64) float64 {
-	if x == 0 {
-		if y > 0 {
-			return 3.14159265359 / 2
-		}
-		return -3.14159265359 / 2
-	}
-	z := y / x
-	return z / (1 + 0.28*z*z)
-}
-
 func extractCategory(query string, entities []string) string {
 	categories := []string{
 		"technology", "tech", "sports", "business", "entertainment",
