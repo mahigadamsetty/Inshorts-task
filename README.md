@@ -255,11 +255,13 @@ curl "http://localhost:8080/health"
 
 ### Key Components
 
-1. **Database Layer**: SQLite with GORM ORM for efficient querying and migrations
-2. **LLM Service**: OpenAI integration with fallback to heuristic extraction
-3. **Ranking Engine**: Multiple algorithms for different endpoint requirements
-4. **Trending System**: Event simulation, scoring, and location-based caching
-5. **HTTP Layer**: Gin framework with CORS support
+1.  **Database Layer (SQLite)**: The project uses SQLite as its database, managed via the GORM ORM.
+    - **Why SQLite?** It was chosen for its simplicity and ease of use. As a serverless, file-based database, it requires no separate installation or configuration, making the project highly portable and easy to set up. It is more than sufficient for the application's needs and is ideal for rapid development.
+
+2.  **LLM Service**: OpenAI integration with fallback to heuristic extraction
+3.  **Ranking Engine**: Multiple algorithms for different endpoint requirements
+4.  **Trending System**: Event simulation, scoring, and location-based caching
+5.  **HTTP Layer**: Gin framework with CORS support
 
 ## Development
 
