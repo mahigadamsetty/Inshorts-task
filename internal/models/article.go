@@ -40,6 +40,7 @@ type Article struct {
 	Latitude        float64     `json:"latitude"`
 	Longitude       float64     `json:"longitude"`
 	LLMSummary      string      `json:"llm_summary,omitempty"`
+	TrendingScore   float64     `gorm:"-" json:"trending_score,omitempty"` // Ignored by GORM, used for API response
 	CreatedAt       time.Time   `json:"-"`
 	UpdatedAt       time.Time   `json:"-"`
 }

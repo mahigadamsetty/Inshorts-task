@@ -15,16 +15,16 @@ import (
 )
 
 type JSONArticle struct {
-	ID              string    `json:"id"`
-	Title           string    `json:"title"`
-	Description     string    `json:"description"`
-	URL             string    `json:"url"`
-	PublicationDate string    `json:"publication_date"`
-	SourceName      string    `json:"source_name"`
-	Category        []string  `json:"category"`
-	RelevanceScore  float64   `json:"relevance_score"`
-	Latitude        float64   `json:"latitude"`
-	Longitude       float64   `json:"longitude"`
+	ID              string   `json:"id"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	URL             string   `json:"url"`
+	PublicationDate string   `json:"publication_date"`
+	SourceName      string   `json:"source_name"`
+	Category        []string `json:"category"`
+	RelevanceScore  float64  `json:"relevance_score"`
+	Latitude        float64  `json:"latitude"`
+	Longitude       float64  `json:"longitude"`
 }
 
 func main() {
@@ -88,7 +88,7 @@ func main() {
 	// Import in batches
 	batchSize := 100
 	database := db.GetDB()
-	
+
 	for i := 0; i < len(articles); i += batchSize {
 		end := i + batchSize
 		if end > len(articles) {
@@ -105,25 +105,24 @@ func main() {
 
 	log.Println("Import complete!")
 
-	// Simulate some user events for trending
-	log.Println("Simulating user events for trending...")
-	articleIDs := make([]string, len(articles))
-	for i, article := range articles {
-		articleIDs[i] = article.ID
-	}
-
-	// Generate 1000 random events
-	if err := services.SimulateUserEvents(articleIDs, 1000); err != nil {
-		log.Printf("Warning: Failed to simulate events: %v", err)
+	// After importing, simulate some user events for trending analysis
+	log.Println("Simulating user events...")
+	var importedArticles []models.Article
+	if err := database.Find(&importedArticles).Error; err != nil {
+		log.Printf("Warning: could not fetch imported articles for event simulation: %v", err)
 	} else {
-		log.Println("Simulated 1000 user events")
+		if err := services.SimulateUserEvents(importedArticles, 1000); err != nil {
+			log.Printf("Warning: failed to simulate user events: %v", err)
+		} else {
+			log.Println("Successfully simulated user events.")
+		}
 	}
 
 	// Print summary
 	var count int64
 	database.Model(&models.Article{}).Count(&count)
 	fmt.Printf("\nDatabase now contains %d articles\n", count)
-	
+
 	var eventCount int64
 	database.Model(&models.Event{}).Count(&eventCount)
 	fmt.Printf("Database now contains %d events\n", eventCount)

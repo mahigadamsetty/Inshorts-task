@@ -14,6 +14,7 @@ A Go backend for fetching and organizing news articles with LLM-powered entity e
 ## Prerequisites
 
 - Go 1.21 or higher
+- Git
 - OpenAI API key (optional - system works with fallback if not provided)
 
 ## Installation
@@ -53,7 +54,7 @@ Environment variables (all optional with sensible defaults):
 Import the news dataset into the database:
 
 ```bash
-go run import_data.go "news_data (1).json"
+go run import_data.go "news_data.json"
 ```
 
 This will:
@@ -131,6 +132,8 @@ GET /api/v1/news/nearby?lat=37.4220&lon=-122.0840&radius=10&limit=5
 **Ranking:** Distance (nearest first using Haversine formula)
 
 ### 6. Trending News
+**Note:** This endpoint requires user interaction data. Please run the `go run cmd/simulate_events/main.go` before sending the api
+
 ```bash
 GET /api/v1/news/trending?lat=37.4220&lon=-122.0840&limit=5
 ```
@@ -208,8 +211,11 @@ curl "http://localhost:8080/api/v1/news/nearby?lat=37.7749&lon=-122.4194&radius=
 # Trending in New York
 curl "http://localhost:8080/api/v1/news/trending?lat=40.7128&lon=-74.0060&limit=5"
 
-# Natural language query
+# Natural language query for top technology news
 curl "http://localhost:8080/api/v1/news/query?query=Show%20me%20top%20technology%20news&limit=5"
+
+# Search for articles about Elon Musk and Twitter
+curl "http://localhost:8080/api/v1/news/search?query=Elon%20Musk%20Twitter&limit=5"
 
 # Health check
 curl "http://localhost:8080/health"

@@ -1,8 +1,11 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -15,6 +18,9 @@ type Config struct {
 }
 
 func Load() *Config {
+	if err := godotenv.Load(); err != nil {
+		log.Println("Error loading .env file, will use environment variables if set")
+	}
 	return &Config{
 		DatabaseURL:            getEnv("DATABASE_URL", "news.db"),
 		OpenAIAPIKey:           getEnv("OPENAI_API_KEY", ""),

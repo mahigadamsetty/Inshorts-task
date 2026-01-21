@@ -1,0 +1,365 @@
+openapi: 3.0.0
+info:
+  title: "Contextual News Data Retrieval API"
+  description: "A backend system that fetches, organizes, and enriches news articles with LLM-generated insights."
+  version: "1.0.0"
+servers:
+  - url: "http://localhost:8080"
+    description: "Local development server"
+
+paths:
+  /api/v1/news/category:
+    get:
+      summary: "Get articles by category"
+      description: "Retrieves news articles filtered by a specific category name."
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: "The category to filter by (e.g., 'technology', 'sports')."
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles for the specified category."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Category parameter is missing."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/source:
+    get:
+      summary: "Get articles by source"
+      description: "Retrieves news articles filtered by a specific source name."
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: "The source to filter by (e.g., 'Reuters', 'The Indian Express')."
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles from the specified source."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Source parameter is missing."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/score:
+    get:
+      summary: "Get articles by relevance score"
+      description: "Retrieves articles with a relevance score greater than or equal to a given minimum."
+      parameters:
+        - name: min
+          in: query
+          required: true
+          description: "The minimum relevance score (e.g., 0.7)."
+          schema:
+            type: number
+            format: float
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles meeting the score threshold."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Invalid min score."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/search:
+    get:
+      summary: "Search for articles"
+      description: "Performs a text search within the article title and description."
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: "The search query string."
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles matching the search query."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Query parameter is missing."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/nearby:
+    get:
+      summary: "Get nearby articles"
+      description: "Retrieves articles published geographically close to a given location."
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: "The latitude of the user's location."
+          schema:
+            type: number
+            format: float
+        - name: lon
+          in: query
+          required: true
+          description: "The longitude of the user's location."
+          schema:
+            type: number
+            format: float
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles near the specified location."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Invalid latitude or longitude."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/query:
+    get:
+      summary: "LLM-powered natural language query"
+      description: "Interprets a natural language query using an LLM to determine user intent and find relevant articles."
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: "The natural language query (e.g., 'latest tech news from BBC')."
+          schema:
+            type: string
+        - name: lat
+          in: query
+          required: false
+          description: "The latitude of the user's location (for nearby queries)."
+          schema:
+            type: number
+            format: float
+        - name: lon
+          in: query
+          required: false
+          description: "The longitude of the user's location (for nearby queries)."
+          schema:
+            type: number
+            format: float
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of articles relevant to the natural language query."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Query parameter is missing."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: "Internal Server Error - Failed to process query with LLM."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/news/trending:
+    get:
+      summary: "Get trending articles by location"
+      description: "Provides a location-aware feed of trending news based on simulated user engagement."
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          description: "The latitude of the user's location."
+          schema:
+            type: number
+            format: float
+        - name: lon
+          in: query
+          required: true
+          description: "The longitude of the user's location."
+          schema:
+            type: number
+            format: float
+        - name: limit
+          in: query
+          required: false
+          description: "The maximum number of articles to return. Defaults to 5."
+          schema:
+            type: integer
+            default: 5
+      responses:
+        '200':
+          description: "A list of trending articles near the specified location."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsResponse'
+        '400':
+          description: "Bad Request - Invalid latitude or longitude."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: "Health check"
+      description: "Checks the health of the server."
+      responses:
+        '200':
+          description: "Server is healthy."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+components:
+  schemas:
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: "Unique identifier for the article."
+        title:
+          type: string
+          description: "The title of the news article."
+        description:
+          type: string
+          description: "A short description of the news article."
+        url:
+          type: string
+          format: uri
+          description: "The URL to the original article."
+        publication_date:
+          type: string
+          format: date-time
+          description: "The date and time the article was published."
+        source_name:
+          type: string
+          description: "The name of the news source."
+        category:
+          type: string
+          description: "The category of the news article."
+        relevance_score:
+          type: number
+          format: float
+          description: "A pre-calculated score of the article's relevance."
+        latitude:
+          type: number
+          format: float
+          description: "The latitude associated with the article's location."
+        longitude:
+          type: number
+          format: float
+          description: "The longitude associated with the article's location."
+        llm_summary:
+          type: string
+          description: "A summary of the article generated by the LLM."
+        trending_score:
+          type: number
+          format: float
+          description: "A dynamically calculated score based on user engagement (only present in /trending endpoint)."
+    Meta:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: "The number of articles returned in the current response."
+        limit:
+          type: integer
+          description: "The requested limit for the number of articles."
+        endpoint:
+          type: string
+          description: "The API endpoint that was called."
+        query:
+          type: string
+          description: "The query parameter used for the request."
+    NewsResponse:
+      type: object
+      properties:
+        articles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Article'
+        meta:
+          $ref: '#/components/schemas/Meta'
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: "A description of the error."

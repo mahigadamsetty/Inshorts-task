@@ -1,8 +1,8 @@
 package services
 
 import (
+	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -34,7 +34,7 @@ func InitTrendingCache(ttl int) {
 		ttl:    time.Duration(ttl) * time.Second,
 		ticker: time.NewTicker(time.Duration(ttl) * time.Second),
 	}
-	
+
 	// Start cleanup goroutine
 	go trendingCache.cleanup()
 }
@@ -57,17 +57,17 @@ func (tc *TrendingCache) cleanup() {
 func (tc *TrendingCache) Get(key string) ([]models.Article, bool) {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
-	
+
 	entry, exists := tc.cache[key]
 	if !exists {
 		return nil, false
 	}
-	
+
 	// Check if cache entry is still valid
 	if time.Since(entry.Timestamp) > tc.ttl {
 		return nil, false
 	}
-	
+
 	return entry.Articles, true
 }
 
@@ -75,49 +75,11 @@ func (tc *TrendingCache) Get(key string) ([]models.Article, bool) {
 func (tc *TrendingCache) Set(key string, articles []models.Article) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	
+
 	tc.cache[key] = &CacheEntry{
 		Articles:  articles,
 		Timestamp: time.Now(),
 	}
-}
-
-// SimulateUserEvents generates random user events for articles
-func SimulateUserEvents(articleIDs []string, count int) error {
-	database := db.GetDB()
-	rand.Seed(time.Now().UnixNano())
-	
-	events := make([]models.Event, count)
-	
-	for i := 0; i < count; i++ {
-		// Random article
-		articleID := articleIDs[rand.Intn(len(articleIDs))]
-		
-		// Random event type (70% views, 30% clicks)
-		eventType := models.EventTypeView
-		if rand.Float64() < 0.3 {
-			eventType = models.EventTypeClick
-		}
-		
-		// Random location (simulate various locations)
-		lat := 20.0 + rand.Float64()*20.0  // Range: 20-40
-		lon := 70.0 + rand.Float64()*20.0  // Range: 70-90
-		
-		// Random timestamp within last 24 hours
-		hoursAgo := rand.Float64() * 24
-		timestamp := time.Now().Add(-time.Duration(hoursAgo) * time.Hour)
-		
-		events[i] = models.Event{
-			ArticleID: articleID,
-			EventType: eventType,
-			Latitude:  lat,
-			Longitude: lon,
-			Timestamp: timestamp,
-		}
-	}
-	
-	// Batch insert
-	return database.Create(&events).Error
 }
 
 // ArticleScore represents an article with its trending score
@@ -126,100 +88,98 @@ type ArticleScore struct {
 	Score     float64
 }
 
-// GetTrendingArticles calculates and returns trending articles for a location
+// GetTrendingArticles calculates and returns trending articles based on user events
 func GetTrendingArticles(lat, lon float64, limit int, clusterDegrees float64) ([]models.Article, error) {
+	// Use a geospatial cluster key for caching
+	clusterKey := getClusterKey(lat, lon, clusterDegrees)
+
 	// Check cache first
-	clusterKey := utils.GetLocationClusterKey(lat, lon, clusterDegrees)
-	if cached, found := trendingCache.Get(clusterKey); found {
-		if len(cached) <= limit {
-			return cached, nil
+	if articles, found := trendingCache.Get(clusterKey); found {
+		if len(articles) > limit {
+			return articles[:limit], nil
 		}
-		return cached[:limit], nil
+		return articles, nil
 	}
-	
+
+	// --- If not in cache, calculate trending scores ---
 	database := db.GetDB()
-	
-	// Get recent events (last 24 hours)
-	cutoffTime := time.Now().Add(-24 * time.Hour)
-	var events []models.Event
-	
-	if err := database.Where("timestamp > ?", cutoffTime).Find(&events).Error; err != nil {
+
+	// 1. Fetch recent events (e.g., last 24 hours)
+	var recentEvents []models.Event
+	err := database.Where("timestamp > ?", time.Now().Add(-24*time.Hour)).Find(&recentEvents).Error
+	if err != nil {
 		return nil, err
 	}
-	
-	// Calculate trending scores
+
+	if len(recentEvents) == 0 {
+		// If no recent events, return empty or a fallback (e.g., latest articles)
+		return []models.Article{}, nil
+	}
+
+	// 2. Calculate trending score for each article
 	articleScores := make(map[string]float64)
-	
-	for _, event := range events {
-		// Calculate distance from user location
-		distance := utils.HaversineDistance(lat, lon, event.Latitude, event.Longitude)
-		
-		// Calculate recency factor (decay over time)
-		hoursAgo := time.Since(event.Timestamp).Hours()
-		recencyFactor := math.Exp(-hoursAgo / 12.0) // Exponential decay, half-life of 12 hours
-		
-		// Calculate interaction weight (clicks worth more than views)
-		interactionWeight := 1.0
-		if event.EventType == models.EventTypeClick {
-			interactionWeight = 2.0
-		}
-		
-		// Calculate geographical relevance (closer locations score higher)
-		// Use inverse distance with smoothing
-		geoRelevance := 1.0 / (1.0 + distance/100.0)
-		
-		// Combined score
-		score := interactionWeight * recencyFactor * geoRelevance
+	articleIDs := make(map[string]bool)
+
+	for _, event := range recentEvents {
+		score := calculateEventScore(event, lat, lon)
 		articleScores[event.ArticleID] += score
+		articleIDs[event.ArticleID] = true
 	}
-	
-	// Convert to slice and sort
-	scores := make([]ArticleScore, 0, len(articleScores))
-	for articleID, score := range articleScores {
-		scores = append(scores, ArticleScore{
-			ArticleID: articleID,
-			Score:     score,
-		})
+
+	// 3. Get the article details for the trending articles
+	var ids []string
+	for id := range articleIDs {
+		ids = append(ids, id)
 	}
-	
-	// Sort by score (descending) using built-in sort
-	sort.Slice(scores, func(i, j int) bool {
-		return scores[i].Score > scores[j].Score
-	})
-	
-	// Get top articles
-	topCount := limit * 2 // Get extra to account for missing articles
-	if topCount > len(scores) {
-		topCount = len(scores)
-	}
-	
-	articleIDs := make([]string, topCount)
-	for i := 0; i < topCount; i++ {
-		articleIDs[i] = scores[i].ArticleID
-	}
-	
-	// Fetch articles
+
 	var articles []models.Article
-	if err := database.Where("id IN ?", articleIDs).Find(&articles).Error; err != nil {
+	err = database.Where("id IN ?", ids).Find(&articles).Error
+	if err != nil {
 		return nil, err
 	}
-	
-	// Sort articles by their trending score
-	sortedArticles := make([]models.Article, 0, len(articles))
-	for _, score := range scores[:topCount] {
-		for _, article := range articles {
-			if article.ID == score.ArticleID {
-				sortedArticles = append(sortedArticles, article)
-				break
-			}
-		}
+
+	// 4. Attach scores and sort
+	for i := range articles {
+		articles[i].TrendingScore = articleScores[articles[i].ID]
 	}
-	
-	// Cache the results
-	trendingCache.Set(clusterKey, sortedArticles)
-	
-	if len(sortedArticles) <= limit {
-		return sortedArticles, nil
+
+	// Sort articles by trending score in descending order
+	sort.Slice(articles, func(i, j int) bool {
+		return articles[i].TrendingScore > articles[j].TrendingScore
+	})
+
+	// Limit the results
+	if len(articles) > limit {
+		articles = articles[:limit]
 	}
-	return sortedArticles[:limit], nil
+
+	trendingCache.Set(clusterKey, articles)
+
+	return articles, nil
+}
+
+// calculateEventScore computes a score for a single user event
+func calculateEventScore(event models.Event, userLat, userLon float64) float64 {
+	// Base score for event type
+	baseScore := 1.0 // View
+	if event.EventType == "click" {
+		baseScore = 3.0 // Clicks are more valuable
+	}
+
+	// Time decay factor (events from the last hour are most valuable)
+	hoursAgo := time.Since(event.Timestamp).Hours()
+	timeDecay := math.Exp(-0.1 * hoursAgo) // Exponential decay
+
+	// Location proximity factor
+	distance := utils.HaversineDistance(userLat, userLon, event.Latitude, event.Longitude)
+	locationFactor := math.Exp(-0.05 * distance) // Closer events get higher score
+
+	return baseScore * timeDecay * locationFactor
+}
+
+// getClusterKey creates a string key for a geographic cluster.
+func getClusterKey(lat, lon, clusterDegrees float64) string {
+	latCluster := math.Round(lat/clusterDegrees) * clusterDegrees
+	lonCluster := math.Round(lon/clusterDegrees) * clusterDegrees
+	return fmt.Sprintf("%.2f,%.2f", latCluster, lonCluster)
 }
